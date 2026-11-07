@@ -1,2 +1,14 @@
 
+# Database
 todo.db
+
+# Environment variables
+.env
+
+# Dependencies
+vendor/
+node_modules/
+
+# System files
+.DS_Store
+Thumbs.db

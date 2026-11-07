@@ -1,7 +1,7 @@
 <?php
 try {
     // إنشاء أو الاتصال بقاعدة بيانات SQLite
-    $db = new PDO('sqlite:todo.db');
+$db = new PDO('sqlite:' . __DIR__ . '/todo.db');
     
     // تفعيل وضع الأخطاء لتظهر في حال وجود أي مشكلة
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

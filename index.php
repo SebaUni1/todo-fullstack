@@ -1,108 +1,13 @@
 <?php
 include('db.php');
 
-// حماية النصوص من الثغرات
 function e($value) {
-    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
-
-// Add Task
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_task'])) {
-    $task = trim($_POST['task']);
-    
-    if ($task != '') {
-        $stmt = $db->prepare(
-            "INSERT INTO tasks (title, is_completed) VALUES (:title, 0)"
-        );
-        $stmt->execute(['title' => $task]);
-    }
-
-    header('Location: index.php');
-    exit;
-}
-
-// Edit Task
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_task'])) {
-    $id = (int) $_POST['id'];
-    $task = trim($_POST['task']);
-
-    if ($id > 0 && $task != '') {
-        $stmt = $db->prepare(
-            "UPDATE tasks SET title = :title WHERE id = :id"
-        );
-        $stmt->execute([
-            'title' => $task,
-            'id' => $id
-        ]);
-    }
-
-    header('Location: index.php');
-    exit;
-}
-
-// Delete Task
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_task'])) {
-    $id = (int) $_POST['delete_task'];
-
-    $stmt = $db->prepare("DELETE FROM tasks WHERE id = :id");
-    $stmt->execute(['id' => $id]);
-
-    header('Location: index.php');
-    exit;
-}
-
-// Complete or Undo Task (Toggle)
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['toggle_task'])) {
-    $id = (int) $_POST['toggle_task'];
-
-    // تبديل قيمة is_completed بين 0 و 1
-    $stmt = $db->prepare("
-        UPDATE tasks
-        SET is_completed = CASE
-            WHEN is_completed = 1 THEN 0
-            ELSE 1
-        END
-        WHERE id = :id
-    ");
-
-    $stmt->execute(['id' => $id]);
-
-    header('Location: index.php');
-    exit;
-}
-
-// Get Task for Editing
-$editTask = null;
-if (isset($_GET['edit'])) {
-    $id = (int) $_GET['edit'];
-
-    $stmt = $db->prepare("SELECT * FROM tasks WHERE id = :id");
-    $stmt->execute(['id' => $id]);
-
-    $editTask = $stmt->fetch(PDO::FETCH_ASSOC);
-}
-
-// Get All Tasks
-$tasks = $db->query(
-    "SELECT * FROM tasks ORDER BY id DESC"
-)->fetchAll(PDO::FETCH_ASSOC);
-
-// Calculate Statistics
-$total = count($tasks);
-$completed = 0;
-
-foreach ($tasks as $row) {
-    if (isset($row['is_completed']) && $row['is_completed'] == 1) {
-        $completed++;
-    }
-}
-
-$remaining = $total - $completed;
-$progress = ($total > 0) ? round(($completed / $total) * 100) : 0;
 ?>
 
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -135,7 +40,6 @@ $progress = ($total > 0) ? round(($completed / $total) * 100) : 0;
             color: #2c3e50;
         }
 
-        /* Statistics */
         .stats {
             display: flex;
             gap: 12px;
@@ -161,7 +65,6 @@ $progress = ($total > 0) ? round(($completed / $total) * 100) : 0;
             font-size: 13px;
         }
 
-        /* Progress */
         .progress-section {
             margin-bottom: 25px;
         }
@@ -172,7 +75,6 @@ $progress = ($total > 0) ? round(($completed / $total) * 100) : 0;
             margin-bottom: 8px;
         }
 
-        /* شكل شريط التقدم */
         .progress-bar {
             background: #e5e7eb;
             height: 12px;
@@ -183,10 +85,10 @@ $progress = ($total > 0) ? round(($completed / $total) * 100) : 0;
         .progress-fill {
             background: #28a745;
             height: 100%;
-            width: <?php echo $progress; ?>%;
+            width: 0%;
+            transition: width 0.3s;
         }
 
-        /* Form */
         .task-form {
             display: flex;
             gap: 10px;
@@ -210,34 +112,81 @@ $progress = ($total > 0) ? round(($completed / $total) * 100) : 0;
             padding: 10px 15px;
         }
 
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .add-button {
             background: #28a745;
             color: white;
         }
 
-        .save-button {
-            background: #2563eb;
-            color: white;
+        .bulk-section {
+            background: #f3f6fb;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
         }
 
-        /* Tasks */
+        .bulk-section h3 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+
+        .bulk-section textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 7px;
+            font-size: 14px;
+            resize: vertical;
+            font-family: Arial, sans-serif;
+        }
+
+        .bulk-button {
+            background: #2563eb;
+            color: white;
+            width: 100%;
+        }
+
+        .message {
+            padding: 10px;
+            border-radius: 7px;
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .message.success {
+            display: block;
+            background: #e2f0d9;
+            color: #385723;
+        }
+
+        .message.error {
+            display: block;
+            background: #fce8e6;
+            color: #c53929;
+        }
+
         ul {
             padding: 0;
             list-style: none;
         }
-li {
-    background: #ffffff !important;
-    margin-bottom: 15px !important;
-    padding: 15px !important;
-    border-radius: 8px !important;
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    border: 1px solid #ddd !important;
-    border-right: 4px solid #28a745 !important;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
-}
-        
+
+        li {
+            background: white;
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #ddd;
+            border-right: 4px solid #28a745;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
 
         .task-text {
             color: #333;
@@ -255,26 +204,19 @@ li {
             background: #e9ecef;
             padding: 4px 7px;
             border-radius: 5px;
+            margin-left: 5px;
         }
 
-        /* Buttons */
         .actions {
             display: flex;
             gap: 7px;
             flex-shrink: 0;
         }
 
-        .actions form {
-            margin: 0;
-        }
-
         .btn {
-            display: inline-block;
             padding: 7px 10px;
             border-radius: 5px;
             font-size: 12px;
-            text-decoration: none;
-            font-weight: bold;
             white-space: nowrap;
         }
 
@@ -293,19 +235,19 @@ li {
             color: #3730a3;
         }
 
-        .cancel-btn {
-            align-self: center;
-            color: #666;
-            text-decoration: none;
-        }
-
         .empty {
             text-align: center;
             color: #999;
             padding: 25px;
+            display: block;
         }
 
-        /* Mobile */
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+
         @media (max-width: 480px) {
             .container {
                 padding: 20px 12px;
@@ -338,95 +280,413 @@ li {
 
     <!-- Statistics -->
     <div class="stats">
+
         <div class="stat-box">
-            <h3><?php echo $total; ?></h3>
+            <h3 id="total-count">0</h3>
             <p>Total Tasks</p>
         </div>
+
         <div class="stat-box">
-            <h3><?php echo $completed; ?></h3>
+            <h3 id="completed-count">0</h3>
             <p>Completed</p>
         </div>
+
         <div class="stat-box">
-            <h3><?php echo $remaining; ?></h3>
+            <h3 id="remaining-count">0</h3>
             <p>Remaining</p>
         </div>
+
     </div>
 
     <!-- Progress Bar -->
     <div class="progress-section">
+
         <div class="progress-info">
             <span>Daily Progress</span>
-            <strong><?php echo $progress; ?>%</strong>
+            <strong id="progress-number">0%</strong>
         </div>
+
         <div class="progress-bar">
-            <div class="progress-fill"></div>
+            <div class="progress-fill" id="progress-fill"></div>
         </div>
+
     </div>
 
-    <!-- Add or Edit Task -->
-    <form method="POST" class="task-form">
+    <!-- Add Task -->
+    <form class="task-form" id="single-task-form">
+
         <input
             type="text"
-            name="task"
-            placeholder="أدخل مهمة جديدة..."
-            value="<?php echo e($editTask['title'] ?? ''); ?>"
+            id="single-task-input"
+            placeholder="Enter a new task..."
             maxlength="200"
             required
         >
 
-        <?php if ($editTask): ?>
-            <input type="hidden" name="id" value="<?php echo (int)$editTask['id']; ?>">
-            <button type="submit" name="edit_task" class="save-button">حفظ التعديل</button>
-            <a href="index.php" class="cancel-btn">إلغاء</a>
-        <?php else: ?>
-            <button type="submit" name="add_task" class="add-button">إضافة</button>
-        <?php endif; ?>
+        <button type="submit" class="add-button" id="add-button">
+            Add Task
+        </button>
+
     </form>
 
+    <!-- Bulk Add Tasks -->
+    <div class="bulk-section">
+
+        <h3>Add Multiple Tasks</h3>
+
+        <div id="bulk-message" class="message"></div>
+
+        <form id="bulk-form">
+
+            <textarea
+                id="bulk-tasks"
+                rows="5"
+                placeholder="Enter one task per line..."
+            ></textarea>
+
+            <p>
+                Tasks to add:
+                <strong id="task-count">0</strong>
+            </p>
+
+            <button
+                type="submit"
+                id="bulk-button"
+                class="bulk-button"
+            >
+                Add All
+            </button>
+
+        </form>
+
+    </div>
+
     <!-- Display Tasks -->
-    <ul>
-        <?php if ($total > 0): ?>
-            <?php foreach ($tasks as $index => $row): ?>
-                <?php
-                $isCompleted = isset($row['is_completed']) && $row['is_completed'] == 1;
-                ?>
-                <li>
-                    <div class="task-text">
-                        <span class="<?php echo $isCompleted ? 'completed-task' : ''; ?>">
-                            <?php echo ($index + 1) . '. ' . e($row['title']); ?>
-                        </span>
-                        <span class="status-badge">
-                            <?php echo $isCompleted ? 'Completed' : 'Pending'; ?>
-                        </span>
-                    </div>
+    <div id="loading" class="loading">
+        Loading tasks...
+    </div>
 
-                    <div class="actions">
-                        <a href="index.php?edit=<?php echo (int)$row['id']; ?>" class="btn edit-btn">Edit</a>
+    <div id="error-message" class="message"></div>
 
-                        <form method="POST">
-                            <button type="submit" name="toggle_task" value="<?php echo (int)$row['id']; ?>" class="btn complete-btn">
-                                <?php echo $isCompleted ? 'Undo' : 'Complete'; ?>
-                            </button>
-                        </form>
-
-                        <form method="POST" onsubmit="return confirm('هل أنت متأكد من حذف المهمة؟');">
-                            <button type="submit" name="delete_task" value="<?php echo (int)$row['id']; ?>" class="btn delete-btn">
-                                Delete
-                            </button>
-                        </form>
-                    </div>
-                </li>
-            <?php endforeach; ?>
-        <?php else: ?>
-            <li class="empty">
-                لا توجد مهام حالياً
-                <br>
-                ابدأ بإضافة أول مهمة!
-            </li>
-        <?php endif; ?>
-    </ul>
+    <ul id="task-list"></ul>
 
 </div>
+
+<!-- API Functions -->
+<script src="api.js"></script>
+
+<script>
+
+// Get elements
+const taskForm = document.getElementById('single-task-form');
+const taskInput = document.getElementById('single-task-input');
+const taskList = document.getElementById('task-list');
+
+const totalCount = document.getElementById('total-count');
+const completedCount = document.getElementById('completed-count');
+const remainingCount = document.getElementById('remaining-count');
+
+const progressNumber = document.getElementById('progress-number');
+const progressFill = document.getElementById('progress-fill');
+
+const loading = document.getElementById('loading');
+const errorMessage = document.getElementById('error-message');
+
+// Store tasks
+let tasks = [];
+
+// Show error message
+function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.className = 'message error';
+}
+
+// Update statistics
+function updateStatistics() {
+
+    const total = tasks.length;
+
+    const completed = tasks.filter(function(task) {
+        return Number(task.is_completed) === 1;
+    }).length;
+
+    const remaining = total - completed;
+
+    const progress = total > 0
+        ? Math.round((completed / total) * 100)
+        : 0;
+
+    totalCount.textContent = total;
+    completedCount.textContent = completed;
+    remainingCount.textContent = remaining;
+
+    progressNumber.textContent = progress + '%';
+    progressFill.style.width = progress + '%';
+}
+
+// Display tasks
+function renderTasks() {
+
+    taskList.innerHTML = '';
+
+    updateStatistics();
+
+    if (tasks.length === 0) {
+        const emptyItem = document.createElement('li');
+        emptyItem.className = 'empty';
+        emptyItem.textContent = 'No tasks available. Start by adding your first task!';
+        taskList.appendChild(emptyItem);
+        return;
+    }
+
+    tasks.forEach(function(task, index) {
+
+        const isCompleted = Number(task.is_completed) === 1;
+
+        const li = document.createElement('li');
+
+        const taskText = document.createElement('div');
+        taskText.className = 'task-text';
+
+        const title = document.createElement('span');
+        title.textContent = (index + 1) + '. ' + task.title;
+
+        if (isCompleted) {
+            title.className = 'completed-task';
+        }
+
+        const status = document.createElement('span');
+        status.className = 'status-badge';
+        status.textContent = isCompleted ? 'Completed' : 'Pending';
+
+        taskText.appendChild(title);
+        taskText.appendChild(status);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+
+        // Edit button
+        const editButton = document.createElement('button');
+        editButton.className = 'btn edit-btn';
+        editButton.textContent = 'Edit';
+
+        editButton.addEventListener('click', async function() {
+
+            const newTitle = prompt('Enter the new task title:', task.title);
+
+            if (newTitle === null) {
+                return;
+            }
+
+            if (newTitle.trim() === '') {
+                alert('Task title is required');
+                return;
+            }
+
+            try {
+                await updateTask(task.id, {
+                    title: newTitle.trim()
+                });
+
+                await loadTasks();
+
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        // Complete or Undo button
+        const completeButton = document.createElement('button');
+        completeButton.className = 'btn complete-btn';
+        completeButton.textContent = isCompleted ? 'Undo' : 'Complete';
+
+        completeButton.addEventListener('click', async function() {
+
+            try {
+                await updateTask(task.id, {
+                    is_completed: isCompleted ? 0 : 1
+                });
+
+                await loadTasks();
+
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        // Delete button
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'btn delete-btn';
+        deleteButton.textContent = 'Delete';
+
+        deleteButton.addEventListener('click', async function() {
+
+            const confirmed = confirm('Are you sure you want to delete this task?');
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                await deleteTask(task.id);
+                await loadTasks();
+
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        actions.appendChild(editButton);
+        actions.appendChild(completeButton);
+        actions.appendChild(deleteButton);
+
+        li.appendChild(taskText);
+        li.appendChild(actions);
+
+        taskList.appendChild(li);
+    });
+}
+
+// Load tasks from API
+async function loadTasks() {
+
+    loading.style.display = 'block';
+    errorMessage.className = 'message';
+
+    try {
+
+        tasks = await getTasks();
+
+        renderTasks();
+
+    } catch (error) {
+
+        showError(error.message);
+
+    } finally {
+
+        loading.style.display = 'none';
+    }
+}
+
+// Add one task
+taskForm.addEventListener('submit', async function(event) {
+
+    event.preventDefault();
+
+    const title = taskInput.value.trim();
+
+    if (title === '') {
+        alert('Please enter a task.');
+        return;
+    }
+
+    const button = document.getElementById('add-button');
+
+    button.disabled = true;
+    button.textContent = 'Adding...';
+
+    try {
+
+        await createTask(title);
+
+        taskInput.value = '';
+
+        await loadTasks();
+
+    } catch (error) {
+
+        showError(error.message);
+
+    } finally {
+
+        button.disabled = false;
+        button.textContent = 'Add Task';
+    }
+});
+
+// Bulk Add Tasks
+const bulkInput = document.getElementById('bulk-tasks');
+const taskCount = document.getElementById('task-count');
+const bulkForm = document.getElementById('bulk-form');
+const bulkButton = document.getElementById('bulk-button');
+const bulkMessage = document.getElementById('bulk-message');
+
+// Count tasks
+function updateTaskCount() {
+
+    const titles = bulkInput.value
+        .split('\n')
+        .map(function(title) {
+            return title.trim();
+        })
+        .filter(function(title) {
+            return title !== '';
+        });
+
+    taskCount.textContent = titles.length;
+}
+
+// Update count while typing
+bulkInput.addEventListener('input', updateTaskCount);
+
+// Add multiple tasks
+bulkForm.addEventListener('submit', async function(event) {
+
+    event.preventDefault();
+
+    const titles = bulkInput.value
+        .split('\n')
+        .map(function(title) {
+            return title.trim();
+        })
+        .filter(function(title) {
+            return title !== '';
+        });
+
+    if (titles.length === 0) {
+        bulkMessage.textContent = 'Please enter at least one task.';
+        bulkMessage.className = 'message error';
+        return;
+    }
+
+    if (titles.length > 50) {
+        bulkMessage.textContent = 'You can add a maximum of 50 tasks.';
+        bulkMessage.className = 'message error';
+        return;
+    }
+
+    bulkButton.disabled = true;
+    bulkButton.textContent = 'Adding...';
+
+    try {
+
+        await bulkCreateTasks(titles);
+
+        bulkMessage.textContent = 'Tasks added successfully!';
+        bulkMessage.className = 'message success';
+
+        bulkInput.value = '';
+        updateTaskCount();
+
+        await loadTasks();
+
+    } catch (error) {
+
+        bulkMessage.textContent = error.message;
+        bulkMessage.className = 'message error';
+
+    } finally {
+
+        bulkButton.disabled = false;
+        bulkButton.textContent = 'Add All';
+    }
+});
+
+// Load tasks when page opens
+loadTasks();
+
+</script>
 
 </body>
 </html>

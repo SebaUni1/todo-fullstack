@@ -1,7 +1,13 @@
 <?php
+
 header('Content-Type: application/json; charset=UTF-8');
 
 require_once __DIR__ . '/../../db.php';
+require_once __DIR__ . '/../../auth.php';
+
+// Check user authentication
+$user = getAuthenticatedUser();
+$userId = (int) $user->user_id;
 
 // Read task ID from URL
 $id = isset($_GET['id']) ? (int) $_GET['id'] : null;
@@ -26,8 +32,16 @@ function getInput() {
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     if ($id !== null) {
-        $stmt = $db->prepare("SELECT * FROM tasks WHERE id = :id");
-        $stmt->execute(['id' => $id]);
+        $stmt = $db->prepare(
+            "SELECT * FROM tasks
+             WHERE id = :id AND user_id = :user_id"
+        );
+
+        $stmt->execute([
+            'id' => $id,
+            'user_id' => $userId
+        ]);
+
         $task = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$task) {
@@ -47,7 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
-    $stmt = $db->query("SELECT * FROM tasks ORDER BY id DESC");
+    $stmt = $db->prepare(
+        "SELECT * FROM tasks
+         WHERE user_id = :user_id
+         ORDER BY id DESC"
+    );
+
+    $stmt->execute(['user_id' => $userId]);
+
     $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
@@ -88,16 +109,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         $stmt = $db->prepare(
-            "INSERT INTO tasks (title, is_completed)
-             VALUES (:title, 0)"
+            "INSERT INTO tasks (user_id, title, is_completed)
+             VALUES (:user_id, :title, 0)"
         );
 
-        $stmt->execute(['title' => $title]);
+        $stmt->execute([
+            'user_id' => $userId,
+            'title' => $title
+        ]);
 
         $newId = $db->lastInsertId();
 
-        $stmt = $db->prepare("SELECT * FROM tasks WHERE id = :id");
-        $stmt->execute(['id' => $newId]);
+        $stmt = $db->prepare(
+            "SELECT * FROM tasks
+             WHERE id = :id AND user_id = :user_id"
+        );
+
+        $stmt->execute([
+            'id' => $newId,
+            'user_id' => $userId
+        ]);
 
         $task = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -133,8 +164,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 
     $input = getInput();
 
-    $stmt = $db->prepare("SELECT * FROM tasks WHERE id = :id");
-    $stmt->execute(['id' => $id]);
+    $stmt = $db->prepare(
+        "SELECT * FROM tasks
+         WHERE id = :id AND user_id = :user_id"
+    );
+
+    $stmt->execute([
+        'id' => $id,
+        'user_id' => $userId
+    ]);
+
     $task = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$task) {
@@ -196,17 +235,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
              SET title = :title,
                  is_completed = :is_completed,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = :id"
+             WHERE id = :id AND user_id = :user_id"
         );
 
         $stmt->execute([
             'title' => $title,
             'is_completed' => $isCompleted,
-            'id' => $id
+            'id' => $id,
+            'user_id' => $userId
         ]);
 
-        $stmt = $db->prepare("SELECT * FROM tasks WHERE id = :id");
-        $stmt->execute(['id' => $id]);
+        $stmt = $db->prepare(
+            "SELECT * FROM tasks
+             WHERE id = :id AND user_id = :user_id"
+        );
+
+        $stmt->execute([
+            'id' => $id,
+            'user_id' => $userId
+        ]);
 
         $updatedTask = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -238,8 +285,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
         exit;
     }
 
-    $stmt = $db->prepare("DELETE FROM tasks WHERE id = :id");
-    $stmt->execute(['id' => $id]);
+    $stmt = $db->prepare(
+        "DELETE FROM tasks
+         WHERE id = :id AND user_id = :user_id"
+    );
+
+    $stmt->execute([
+        'id' => $id,
+        'user_id' => $userId
+    ]);
 
     if ($stmt->rowCount() === 0) {
         http_response_code(404);
@@ -261,4 +315,5 @@ echo json_encode([
     'success' => false,
     'message' => 'Method not allowed'
 ]);
+
 ?>

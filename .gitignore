@@ -12,3 +12,6 @@ node_modules/
 # System files
 .DS_Store
 Thumbs.db
+# Composer installer files
+composer.phar
+composer-setup.php
